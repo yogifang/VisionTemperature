@@ -21,6 +21,8 @@ char json_output[256];
 
 // Use WiFiClientSecure class to create TLS connection
 WiFiClientSecure client;
+time_t now ;
+struct tm timeinfo;
 
 DHTesp dht;
 #define REPORT_TIME 360 // 1hour
@@ -56,7 +58,7 @@ const uint8_t SEG_FAIL[] = {
     SEG_A | SEG_E | SEG_F | SEG_G,                 // F
     SEG_A | SEG_B | SEG_C | SEG_E | SEG_F | SEG_G, // A
     SEG_F | SEG_G,                                 // I
-    SEG_D | SEG_F | SEG_G                          // L
+    SEG_D | SEG_F | SEG_C                          // L
 };
 
 const uint8_t SEG_DONE[] = {
@@ -80,7 +82,7 @@ void setup()
   configTime(3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
 
   Serial.print("Waiting for NTP time sync: ");
-  time_t now = time(nullptr);
+  now = time(nullptr);
   while (now < 8 * 3600 * 2)
   {
     delay(500);
@@ -88,7 +90,7 @@ void setup()
     now = time(nullptr);
   }
   Serial.println("");
-  struct tm timeinfo;
+  
   gmtime_r(&now, &timeinfo);
   Serial.print("Current time: ");
   Serial.print(asctime(&timeinfo));
@@ -110,6 +112,7 @@ void setup()
 
 void sendHttpsRequest(String temp, String humi)
 {
+
   // return;
   json_doc["Domain"] = "CheckTemperature";
   json_doc["Table"] = "TemperatureStatus";
@@ -117,8 +120,10 @@ void sendHttpsRequest(String temp, String humi)
   json_doc["Data"][0]["Temperature"] = temp;
   json_doc["Data"][0]["Humidity"] = humi;
   serializeJson(json_doc, json_output);
+
   if (!client.connected())
   { //  reconnect to server
+   
     time_t now = time(nullptr);
     while (now < 8 * 3600 * 2)
     {
@@ -127,13 +132,14 @@ void sendHttpsRequest(String temp, String humi)
       now = time(nullptr);
     }
     Serial.println("");
-    struct tm timeinfo;
+   // struct tm timeinfo;
     gmtime_r(&now, &timeinfo);
     Serial.print("Current time: ");
     Serial.print(asctime(&timeinfo));
     if (!client.connect(github_host, github_port))
     {
       Serial.println("Connection failed");
+      display.setSegments(SEG_FAIL);
       return;
     }
   }
@@ -163,15 +169,17 @@ void sendHttpsRequest(String temp, String humi)
     }
   }
   String line = client.readStringUntil('\n');
-  if (line.startsWith("{\"state\":\"success\""))
+  if (line.indexOf("Vision") > 0)
   {
     Serial.println("esp8266/Arduino CI successful!");
   }
   else
   {
     Serial.println("esp8266/Arduino CI has failed");
+  
   }
-  // Serial.println("Reply was:");
+  client.stop();
+  // Seral.println("Reply was:");
   // Serial.println("==========");
   //  Serial.println(line);
   // Serial.println("==========");
